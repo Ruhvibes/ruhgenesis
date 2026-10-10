@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>RuhGenesis — The Living Universe</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="screen active" id="screen-splash">
+  <div class="stars-bg"></div>
+  <img class="splash-logo" src="assets/logo.png" alt="RuhGenesis">
+  <div class="splash-sub" data-i18n="app_sub">The Living Universe</div>
+  <div class="splash-by" data-i18n="created_by">Created by Hasnain Khan</div>
+  <div class="splash-tap" data-i18n="tap_skip">Tap to begin</div>
+</div>
+
+<!-- MENU -->
+<div class="screen" id="screen-menu">
+  <div class="stars-bg"></div>
+  <div class="menu-wrap">
+    <img class="menu-logo" src="assets/logo.png" alt="RuhGenesis">
+    <h1 class="game-title">RUHGENESIS</h1>
+    <div class="game-sub" data-i18n="app_sub">The Living Universe</div>
+    <div class="game-by" data-i18n="created_by">Created by Hasnain Khan</div>
+    <div class="menu-btns">
+      <button class="mbtn primary" id="btn-new" data-i18n="menu_new">Start My Universe</button>
+      <button class="mbtn" id="btn-continue" data-i18n="menu_continue">Continue Simulation</button>
+      <button class="mbtn" id="btn-worlds" data-i18n="menu_worlds">My Universes</button>
+      <button class="mbtn" id="btn-community" data-i18n="menu_community">Explore Global Universe</button>
+      <button class="mbtn" id="btn-timeline-menu" data-i18n="menu_timeline">Timeline Explorer</button>
+      <button class="mbtn" id="btn-settings" data-i18n="menu_settings">Settings</button>
+      <button class="mbtn" id="btn-about" data-i18n="menu_about">About the Creator</button>
+      <button class="mbtn ghost" id="btn-exit">⏻</button>
+    </div>
+  </div>
+</div>
+
+<!-- WORLDS -->
+<div class="screen" id="screen-worlds">
+  <div class="stars-bg"></div>
+  <div class="page">
+    <div class="page-head"><button class="back" data-back>‹</button><h2 data-i18n="menu_worlds">My Universes</h2></div>
+    <div id="worlds-list"></div>
+  </div>
+</div>
+
+<!-- UNIVERSE / GAME -->
+<div class="screen" id="screen-universe">
+  <canvas id="gl"></canvas>
+  <div class="hud-top">
+    <div class="hud-id"><b id="hud-name">—</b><small id="hud-time">—</small></div>
+    <button class="hbtn" id="tb-stats">📊</button>
+  </div>
+  <div id="stats-panel"></div>
+  <div id="planet-panel"></div>
+  <div id="events-feed"></div>
+  <div class="hud-bottom">
+    <button class="tbtn" id="tb-addlife">🧬<small data-i18n="hud_addlife">Add Life</small></button>
+    <button class="tbtn" id="tb-climate">🌡️<small data-i18n="hud_climate">Climate</small></button>
+    <button class="tbtn" id="tb-panseed">🌱<small data-i18n="seed_neighbor">Seed Neighbor</small></button>
+    <button class="tbtn big" id="tb-speed">1×</button>
+    <button class="tbtn" id="tb-save">💾<small data-i18n="hud_save">Save</small></button>
+    <button class="tbtn" id="tb-timeline">🕓<small data-i18n="hud_timeline">Timeline</small></button>
+    <button class="tbtn" id="tb-share">🔗<small data-i18n="hud_share">Share</small></button>
+    <button class="tbtn" id="tb-home">🏠<small data-i18n="hud_home">Home</small></button>
+  </div>
+</div>
+
+<!-- TIMELINES -->
+<div class="screen" id="screen-timelines">
+  <div class="stars-bg"></div>
+  <div class="page">
+    <div class="page-head"><button class="back" data-back>‹</button><h2 data-i18n="tl_title">Timeline Explorer</h2>
+      <button class="btn primary sm" id="tl-new">＋ <span data-i18n="tl_snapshot">Snapshot</span></button></div>
+    <div id="tl-list"></div>
+  </div>
+</div>
+
+<!-- COMMUNITY -->
+<div class="screen" id="screen-community">
+  <div class="stars-bg"></div>
+  <div class="page">
+    <div class="page-head"><button class="back" data-back>‹</button><h2 data-i18n="com_title">Global Universe</h2></div>
+    <div class="com-actions">
+      <button class="btn primary sm" id="com-publish" data-i18n="com_publish">Publish Universe</button>
+      <button class="btn ghost sm" id="com-entercode" data-i18n="code_enter">Enter Code</button>
+    </div>
+    <h3 class="sec" data-i18n="com_browse">Community Universes</h3>
+    <div id="com-list"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="screen-settings">
+  <div class="stars-bg"></div>
+  <div class="page">
+    <div class="page-head"><button class="back" data-back>‹</button><h2 data-i18n="set_title">Settings</h2></div>
+    <div class="set-row"><label data-i18n="set_lang">Language</label>
+      <select id="set-lang"><option value="en">English</option><option value="hi">हिन्दी</option></select></div>
+    <div class="set-row"><label data-i18n="set_quality">Graphics quality</label>
+      <select id="set-quality"><option value="low" data-i18n="q_low">Low</option><option value="med" data-i18n="q_med">Medium</option><option value="high" data-i18n="q_high">High</option></select></div>
+    <div class="set-row"><label data-i18n="set_master">Master volume</label>
+      <input type="range" id="set-master" min="0" max="1" step="0.05"></div>
+    <div class="set-row"><label data-i18n="set_music">Music volume</label>
+      <input type="range" id="set-music" min="0" max="1" step="0.05"></div>
+    <div class="set-row"><label data-i18n="set_sfx">Effects volume</label>
+      <input type="range" id="set-sfx" min="0" max="1" step="0.05"></div>
+    <div class="set-row"><label data-i18n="set_mute">Mute all</label>
+      <input type="checkbox" id="set-mute"></div>
+    <div class="set-row"><label data-i18n="set_camsens">Camera sensitivity</label>
+      <input type="range" id="set-camsens" min="0.4" max="2" step="0.1"></div>
+    <div class="set-row"><label data-i18n="set_vibrate">Vibration</label>
+      <input type="checkbox" id="set-vibrate"></div>
+    <div class="set-row"><button class="btn ghost sm" id="set-tutorial" data-i18n="set_tutorial">Replay tutorial</button></div>
+    <div class="set-row"><button class="btn ghost sm" id="set-reset" data-i18n="set_reset">Reset settings</button></div>
+    <div class="set-row dim"><span data-i18n="set_version">Version</span><b>1.0</b></div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<div class="screen" id="screen-about">
+  <div class="stars-bg"></div>
+  <div class="page center">
+    <button class="back" data-back>‹</button>
+    <img class="about-logo" src="assets/logo.png" alt="RuhGenesis">
+    <h2>RUHGENESIS</h2>
+    <div class="game-sub" data-i18n="app_sub">The Living Universe</div>
+    <div class="game-by" data-i18n="created_by">Created by Hasnain Khan</div>
+    <p class="about-text" data-i18n="about_text"></p>
+    <div class="dim"><span data-i18n="set_version">Version</span> 1.0</div>
+  </div>
+</div>
+
+<!-- OVERLAYS -->
+<div id="toast"></div>
+<div id="overlay"><div id="dlg-box"></div></div>
+<div id="tut-ov"><div id="tut-card"><div id="tut-txt"></div>
+  <div class="dlg-row"><button class="btn ghost sm" id="tut-skip">✕</button>
+  <button class="btn primary sm" id="tut-btn">Next</button></div></div></div>
+
+<script src="three.min.js"></script>
+<script src="js/firebase-app-compat.js"></script>
+<script src="js/firebase-auth-compat.js"></script>
+<script src="js/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="js/prng.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/universe.js"></script>
+<script src="js/life.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/codes.js"></script>
+<script src="js/online.js"></script>
+<script src="js/save.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
