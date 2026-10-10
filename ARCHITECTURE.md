@@ -21,7 +21,15 @@ js/universe.js      # RL.Universe — 3D scene + simulation. See API below.
 js/life.js          # RL.Life — life evolution + civilization stages. See API below.
 js/timeline.js      # RL.Timeline — snapshots, branches, compare, restore.
 js/codes.js         # RL.Codes — universe share codes (pure local, ALWAYS works).
-js/online.js        # RL.Online — Firebase community features (graceful when unconfigured).
+js/online.js        # RL.Online — DUAL community backend:
+                    #  1) Firebase (tried FIRST, only when window.RL_FIREBASE_CONFIG
+                    #     is set): anonymous auth + Firestore `universes` collection.
+                    #  2) GitHub (always, no config): public registry JSON on
+                    #     raw.githubusercontent.com for browse; publish opens a
+                    #     pre-filled issue (label `universe`) merged by repo Action.
+                    #  browseUniverses() merges both (dedupe by namespaced id);
+                    #  publishUniverse() tries Firebase, falls back to GitHub issue.
+                    #  available() always true; backends() lists active backends.
 js/save.js          # RL.Save — localStorage: universes, settings, published cache.
 js/ui.js            # RL.UI — all screens, HUD, panels, toasts, tutorial.
 js/app.js           # boot.

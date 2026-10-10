@@ -485,48 +485,72 @@
   }
 
   /* ---------- community ---------- */
+  var comCache = []; // normalized entries backing the Visit buttons
+
   function renderCommunity() {
     var box = $('com-list');
-    if (!RL.Online.available()) {
-      box.innerHTML = '<div class="notice">📡 ' + RL.t('online_not_configured') + '</div>' +
-        '<div class="hint">' + RL.t('code_hint') + '</div>';
-      return;
+    var st = $('com-status');
+    if (st) {
+      var bs = RL.Online.backends();
+      st.textContent = '\uD83C\uDF10 ' + bs.map(function (b) {
+        return b === 'firebase' ? RL.t('backend_firebase') : RL.t('backend_github');
+      }).join(' + ');
     }
     box.innerHTML = '<div class="empty">…</div>';
-    RL.Online.browse(function (arr) {
-      if (!arr || !arr.length) { box.innerHTML = '<div class="empty">' + RL.t('com_none') + '</div>'; return; }
+    RL.Online.browseUniverses().then(function (arr) {
+      comCache = arr || [];
+      if (!comCache.length) { box.innerHTML = '<div class="empty">' + RL.t('com_none') + '</div>'; return; }
       var html = '';
-      arr.forEach(function (v) {
-        html += '<div class="w-item"><div class="w-thumb none">🌌</div>' +
-          '<div class="w-main"><b>' + esc(v.name || '???') + '</b><small>🧬' + (v.life || 0) + ' · ⚙' + (v.avgTech || 0) + ' · ' + RL.t('online_published_by') + '</small></div>' +
-          '<div class="w-btns"><button class="btn sm primary" data-code="' + esc(v.code || '') + '">' + RL.t('com_open') + '</button></div></div>';
+      comCache.forEach(function (v, i) {
+        var s2 = v.stats || {};
+        html += '<div class="w-item"><div class="w-thumb none">\uD83C\uDF0C</div>' +
+          '<div class="w-main"><b>' + esc(v.name) + '</b><small>' +
+          esc(v.author) + ' \u00B7 \uD83E\uDE90' + s2.planets + ' \u00B7 \uD83E\uDD6C' + s2.life +
+          ' \u00B7 \u2699' + s2.avgTech + '</small></div>' +
+          '<div class="w-btns"><button class="btn sm primary" data-idx="' + i + '">' +
+          RL.t('com_open') + '</button></div></div>';
       });
       box.innerHTML = html;
       var btns = box.querySelectorAll('button');
       for (var i = 0; i < btns.length; i++) {
         btns[i].onclick = function () {
-          var p = RL.Codes.decode(this.getAttribute('data-code'));
-          if (!p) { toast(RL.t('code_invalid')); return; }
-          var Uu = RL.Codes.applyToUniverse(p);
-          Uu.timelines = [];
-          U.currentId = 'u' + Date.now();
-          RL.Universe.loadData(Uu);
-          RL.Universe.setSpeed(1); U.speedIdx = 1;
-          RL.Save.markDirty(); persist(false);
-          show('universe'); RL.Universe.start(); startAutosave();
-          toast(RL.t('code_loaded'));
+          visitEntry(comCache[parseInt(this.getAttribute('data-idx'), 10)]);
         };
       }
+    }).catch(function () {
+      box.innerHTML = '<div class="empty">' + RL.t('com_offline') + '</div>';
     });
+  }
+
+  function visitEntry(v) {
+    if (!v || !v.seed) { toast(RL.t('code_invalid')); return; }
+    var done = function (Uu) {
+      Uu.timelines = [];
+      U.currentId = 'u' + Date.now();
+      RL.Universe.loadData(Uu);
+      RL.Universe.setSpeed(1); U.speedIdx = 1;
+      RL.Save.markDirty(); persist(false);
+      show('universe'); RL.Universe.start(); startAutosave();
+      toast(RL.t('code_loaded'));
+    };
+    if (v.code) {
+      var p = RL.Codes.decode(v.code);
+      if (p) { done(RL.Codes.applyToUniverse(p)); return; }
+    }
+    done(RL.Universe.generate(v.seed, { name: v.name }));
   }
 
   function initCommunity() {
     $('com-publish').onclick = function () {
       var u = RL.Universe.getU();
       if (!u) { toast(RL.t('tut2')); return; }
-      RL.Online.publish(u, function (ok) {
-        toast(ok ? RL.t('com_published') : RL.t('online_not_configured'));
-        if (ok) renderCommunity();
+      var st = RL.Universe.stats() || {};
+      RL.Online.publishUniverse({
+        id: U.currentId || ('u' + Date.now()),
+        name: u.name, seed: u.seed, author: 'anonymous',
+        createdAt: u.createdAt, stats: st, universe: u
+      }).then(function (ok) {
+        toast(ok ? RL.t('com_publish_opened') : RL.t('com_offline'));
       });
     };
     $('com-entercode').onclick = openEnterCode;
