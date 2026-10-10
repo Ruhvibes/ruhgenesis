@@ -1,5 +1,5 @@
 window.RL_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBjMs-yBTeI1aTLywJQ0t9gCydmeOcHjXI",
+  apiKey: "AIzaSyBjMs-yBTeiIaTlywJQ0t9gCydmeOcHjXI",
   authDomain: "ruhgenesis.firebaseapp.com",
   projectId: "ruhgenesis",
   storageBucket: "ruhgenesis.firebasestorage.app",

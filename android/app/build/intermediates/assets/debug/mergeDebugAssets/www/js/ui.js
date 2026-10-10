@@ -133,8 +133,7 @@
     var Uu = RL.Universe.newUniverse(name, seed, size);
     Uu.timelines = [];
     U.currentId = 'u' + Date.now();
-    U.speedIdx = 1;
-    RL.Universe.setSpeed(1);
+    syncSpeed(Uu);
     RL.Save.markDirty();
     persist(false);
     show('universe');
@@ -143,13 +142,19 @@
     startAutosave();
   }
 
+  // FIX: saved sim speed was ignored on load (always forced 1x). Restore it.
+  function syncSpeed(u) {
+    var idx = U.speeds.indexOf(u && u.speed);
+    U.speedIdx = idx >= 0 ? idx : 1;
+    RL.Universe.setSpeed(U.speeds[U.speedIdx]);
+  }
+
   function loadUniverse(id) {
     var rec = RL.Save.get(id);
     if (!rec || !rec.data) { toast(RL.t('toast_save_fail')); return; }
     U.currentId = id;
     RL.Universe.loadData(rehydrate(rec.data));
-    U.speedIdx = 1;
-    RL.Universe.setSpeed(1);
+    syncSpeed(RL.Universe.getU());
     show('universe');
     RL.Universe.start();
     startAutosave();
@@ -163,21 +168,14 @@
 
   function persist(withThumb) {
     if (!U.currentId) return;
-    var data = RL.Universe.serialize();
+    // FIX: serialize(true) so timeline snapshots survive save/load (was: dropped)
+    var data = RL.Universe.serialize(true);
     if (!data) return;
+    U.lastPersistT = Math.round(data.simTime);
     var thumb = null;
-    if (withThumb) { try { thumb = snapshotThumb(); } catch (e) {} }
+    if (withThumb) { try { thumb = RL.Universe.captureThumb(); } catch (e) {} }
     var ok = RL.Save.saveUniverse({ id: U.currentId }, data, thumb);
     if (withThumb) toast(ok ? RL.t('toast_saved') : RL.t('toast_save_fail'));
-  }
-
-  function snapshotThumb() {
-    var cv = document.querySelector('#gl');
-    if (!cv) return null;
-    try {
-      // render one frame synchronously then capture
-      return cv.toDataURL('image/jpeg', 0.6);
-    } catch (e) { return null; }
   }
 
   function startAutosave() {
@@ -231,6 +229,16 @@
     $('tb-speed').textContent = SPEEDS_LABEL[U.speedIdx];
     if ($('stats-panel').classList.contains('show')) renderStats();
     renderEvents();
+    // FIX: sim progress alone never marked the save dirty (autosave skipped it).
+    // Mark dirty every ~240 sim-years so idle simulation still persists.
+    if (Math.round(u.simTime) - (U.lastPersistT || 0) > 240) RL.Save.markDirty();
+    // FIX: open planet panel went stale as life evolved. Throttled live refresh.
+    var now = Date.now();
+    if (U.selectedPid && $('planet-panel').classList.contains('show') &&
+        now - (U.panelT || 0) > 5000) {
+      U.panelT = now;
+      renderPlanetPanel(U.selectedPid);
+    }
   }
 
   function renderStats() {
@@ -320,9 +328,11 @@
   }
 
   function openClimateDialog() {
+    // FIX: previously called doClimate(selectedPid, 0) which showed a misleading
+    // "Climate adjusted" toast while changing nothing. The panel's own
+    // Warmer/Cooler buttons do the real work — just make sure it's visible.
     if (!U.selectedPid) { toast(RL.t('tut2')); return; }
-    doClimate(U.selectedPid, 0); // just refreshes panel; buttons inside panel adjust
-    toast(RL.t('hud_climate') + ' — ' + RL.t('tut2'));
+    renderPlanetPanel(U.selectedPid);
   }
 
   function doPanSeed() {
@@ -338,6 +348,8 @@
   function openShareDialog() {
     var u = RL.Universe.getU(); if (!u) return;
     var code = RL.Codes.encode(u);
+    // FIX: encode() can return null (e.g. huge universe) — was rendered as "null"
+    if (!code) { toast(RL.t('code_invalid')); return; }
     var ov = $('overlay'), box = $('dlg-box');
     box.innerHTML =
       '<div class="dlg-title">' + RL.t('code_title') + '</div>' +
@@ -372,7 +384,7 @@
       Uu.timelines = [];
       U.currentId = 'u' + Date.now();
       RL.Universe.loadData(Uu);
-      U.speedIdx = 1; RL.Universe.setSpeed(1);
+      syncSpeed(Uu);
       RL.Save.markDirty(); persist(false);
       show('universe'); RL.Universe.start(); startAutosave();
       toast(RL.t('code_loaded'));
@@ -406,6 +418,7 @@
             if (!ok) return;
             RL.Timeline.restore(id);
             RL.Save.markDirty(); persist(false);
+            syncSpeed(RL.Universe.getU()); // FIX: HUD speed label matched restored speed
             toast(RL.t('tl_restored'));
             show('universe'); RL.Universe.start();
           });
@@ -537,7 +550,8 @@
       var p = RL.Codes.decode(v.code);
       if (p) { done(RL.Codes.applyToUniverse(p)); return; }
     }
-    done(RL.Universe.generate(v.seed, { name: v.name }));
+    // FIX: visited universes kept default 'm' size even when published as s/l
+    done(RL.Universe.generate(v.seed, { name: v.name, size: (v.stats && v.stats.size) || 'm' }));
   }
 
   function initCommunity() {
@@ -548,9 +562,13 @@
       RL.Online.publishUniverse({
         id: U.currentId || ('u' + Date.now()),
         name: u.name, seed: u.seed, author: 'anonymous',
-        createdAt: u.createdAt, stats: st, universe: u
-      }).then(function (ok) {
-        toast(ok ? RL.t('com_publish_opened') : RL.t('com_offline'));
+        // FIX: normalize createdAt to ISO string (was: mixed number/string)
+        createdAt: new Date(u.createdAt || Date.now()).toISOString(),
+        stats: st, universe: u, size: u.size
+      }).then(function (src) {
+        // FIX: Firebase success showed "Opening publish flow…" — wrong message
+        toast(src === 'firebase' ? RL.t('com_published') :
+              src === 'github' ? RL.t('com_publish_opened') : RL.t('com_offline'));
       });
     };
     $('com-entercode').onclick = openEnterCode;

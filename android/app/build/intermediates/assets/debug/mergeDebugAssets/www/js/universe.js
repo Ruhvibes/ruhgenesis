@@ -367,14 +367,17 @@
 
   function tick(dtYears) {
     var U = E.U; if (!U || dtYears <= 0) return;
+    // FIX: only build the drift rng when actually crossing a 50-year boundary
+    // (was: new closure allocated every frame)
+    var crossed = Math.floor((U.simTime + dtYears) / 50) !== Math.floor(U.simTime / 50);
     U.simTime += dtYears;
-    var r = RL.PRNG.rng('drift' + U.seed + Math.floor(U.simTime / 50));
+    var r = crossed ? RL.PRNG.rng('drift' + U.seed + Math.floor(U.simTime / 50)) : null;
     U.planets.forEach(function (p) {
       p.orbitAngle += p.orbitSpeed * dtYears;
       p.rotAngle += p.rotSpeed * dtYears * 0.5;
       p.moons.forEach(function (mn) { mn.orbitAngle += mn.orbitSpeed * dtYears; });
       // slow environmental drift every ~50 years
-      if (Math.floor(U.simTime / 50) !== Math.floor((U.simTime - dtYears) / 50)) {
+      if (crossed && r) {
         p.temp = Math.max(-150, Math.min(80, p.temp + Math.round((r() - 0.5) * 4)));
         p.water = Math.max(0, Math.min(100, p.water + Math.round((r() - 0.5) * 3)));
       }
@@ -484,20 +487,47 @@
              simTime: Math.round(U.simTime), events: U.events.length };
   }
 
-  function serialize() {
+  // FIX: deep-copy planet state for snapshots/saves. Previously `moons` was
+  // shared by reference (snapshot moon angles drifted with the live sim) and
+  // `_seededNeighbor` was dropped (panspermia could re-fire after save/load).
+  function planetCopy(p) {
+    return { id: p.id, name: p.name, type: p.type, orbitR: p.orbitR,
+      orbitSpeed: p.orbitSpeed, orbitAngle: p.orbitAngle, size: p.size,
+      rotSpeed: p.rotSpeed, rotAngle: p.rotAngle, temp: p.temp,
+      water: p.water, atmo: p.atmo,
+      life: p.life ? JSON.parse(JSON.stringify(p.life)) : null,
+      civ: p.civ ? JSON.parse(JSON.stringify(p.civ)) : null,
+      moons: JSON.parse(JSON.stringify(p.moons)),
+      _seededNeighbor: !!p._seededNeighbor };
+  }
+
+  // FIX: timelines were silently dropped by serialize(), so every snapshot
+  // vanished on save/load. serialize(true) includes them (snapshot payloads
+  // themselves are stored WITHOUT nested timelines to avoid recursion bloat).
+  function serialize(withTimelines) {
     if (!E.U) return null;
     var U = E.U;
-    return { seed: U.seed, name: U.name, createdAt: U.createdAt, simTime: U.simTime,
+    var out = { seed: U.seed, name: U.name, createdAt: U.createdAt, simTime: U.simTime,
              speed: U.speed, size: U.size, star: U.star, rngState: U.rngState,
-             planets: U.planets.map(function (p) {
-               var c = { id: p.id, name: p.name, type: p.type, orbitR: p.orbitR,
-                 orbitSpeed: p.orbitSpeed, orbitAngle: p.orbitAngle, size: p.size,
-                 rotSpeed: p.rotSpeed, rotAngle: p.rotAngle, temp: p.temp,
-                 water: p.water, atmo: p.atmo, life: p.life ? JSON.parse(JSON.stringify(p.life)) : null,
-                 civ: p.civ ? JSON.parse(JSON.stringify(p.civ)) : null, moons: p.moons };
-               return c;
-             }),
+             planets: U.planets.map(planetCopy),
              events: U.events.slice(0, 40) };
+    if (withTimelines) {
+      out.timelines = (U.timelines || []).map(function (s) {
+        return { id: s.id, label: s.label, simTime: s.simTime,
+                 createdAt: s.createdAt, data: s.data };
+      });
+    }
+    return out;
+  }
+
+  // FIX: blank world thumbnails — toDataURL on a WebGL canvas without
+  // preserveDrawingBuffer returns blank. Render synchronously first.
+  function captureThumb() {
+    try {
+      if (!E.renderer || !E.scene || !E.camera || !E.canvas) return null;
+      E.renderer.render(E.scene, E.camera);
+      return E.canvas.toDataURL('image/jpeg', 0.6);
+    } catch (e) { return null; }
   }
 
   function onSelect(cb) { E.selCb = cb; }
@@ -515,6 +545,7 @@
     tick: tick, setSpeed: setSpeed, onSelect: onSelect,
     getPlanet: getPlanet, seedLife: seedLife, changeClimate: changeClimate,
     habitable: habitable, stats: stats, serialize: serialize,
+    captureThumb: captureThumb,
     setCamSens: setCamSens, setQuality: setQuality, pushEvent: pushEvent,
     getU: function () { return E.U; }
   };

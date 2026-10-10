@@ -1,6 +1,6 @@
 /* RuhGenesis share codes — pure local, ALWAYS works (no backend).
    Format: RG-XXXX-XXXX-...  (base36 pairs of UTF-8 bytes + checksum char)
-   Encodes: {v, seed, name, t (simTime), life: [[planetIdx, stage], ...]} */
+   Encodes: {v, seed, name, size, t (simTime), life: [[planetIdx, stage], ...]} */
 (function () {
   'use strict';
 
@@ -13,6 +13,7 @@
         if (p.life) life.push([i, p.life.stage]);
       });
       var payload = { v: 1, seed: universe.seed, name: (universe.name || '').slice(0, 24),
+                      size: universe.size || 'm',
                       t: Math.round(universe.simTime), life: life };
       var json = JSON.stringify(payload);
       var bytes = [];
@@ -61,7 +62,7 @@
 
   // Apply decoded params to a freshly generated universe
   function applyToUniverse(p) {
-    var U = RL.Universe.generate(p.seed, { name: p.name, size: 'm' });
+    var U = RL.Universe.generate(p.seed, { name: p.name, size: p.size || 'm' });
     U.simTime = p.t || 0;
     (p.life || []).forEach(function (ls) {
       var pl = U.planets[ls[0]];

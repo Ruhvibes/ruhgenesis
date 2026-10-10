@@ -8,11 +8,13 @@
 
   function snapshot(label) {
     var u = ensure(); if (!u) return null;
+    // NOTE: serialize() without timelines — snapshot payloads must not nest timelines
     var data = RL.Universe.serialize();
     var s = { id: 'tl' + Date.now() + Math.floor(Math.random() * 999),
               label: label || ('Snapshot ' + (u.timelines.length + 1)),
               simTime: Math.round(u.simTime), createdAt: Date.now(), data: data };
     u.timelines.push(s);
+    if (u.timelines.length > 20) u.timelines.shift(); // cap: keep newest 20
     if (RL.Save) RL.Save.markDirty();
     return s;
   }

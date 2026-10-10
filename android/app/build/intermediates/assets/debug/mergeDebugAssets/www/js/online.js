@@ -38,22 +38,44 @@
     } catch (e) { fbInited = false; fbDb = null; return false; }
   }
 
-  function fbPublish(u) {
-    return new Promise(function (resolve) {
+  // FIX: anonymous sign-in is fire-and-forget at boot; a publish tap racing it
+  // used to fail straight into the GitHub fallback. Wait briefly for auth.
+  function authReady() {
+    return new Promise(function (res) {
       try {
-        var st = (u && u.stats) || {};
-        var doc = {
-          name: String((u && u.name) || 'Untitled Universe').slice(0, 60),
-          seed: String((u && u.seed) || ''),
-          author: String((u && u.author) || 'anonymous').slice(0, 40),
-          stats: { planets: st.planets || 0, life: st.life || 0,
-                   avgTech: st.avgTech || 0, simTime: st.simTime || 0 }
-        };
-        try { doc.createdAt = firebase.firestore.FieldValue.serverTimestamp(); } catch (e) { doc.createdAt = null; }
-        try { if (u && u.universe && typeof RL !== 'undefined' && RL.Codes) doc.code = RL.Codes.encode(u.universe); } catch (e) {}
-        fbDb.collection('universes').add(doc).then(function () { resolve(true); })
-          .catch(function () { resolve(ghPublish(u)); }); // fallback: GitHub issue
-      } catch (e) { resolve(ghPublish(u)); }
+        var au = firebase.auth();
+        if (au.currentUser) return res(true);
+        var done = false;
+        var to = setTimeout(function () { if (!done) { done = true; res(!!au.currentUser); } }, 2500);
+        var un = au.onAuthStateChanged(function (u) {
+          if (!done) { done = true; clearTimeout(to); try { un && un(); } catch (e) {} res(!!u); }
+        });
+      } catch (e) { res(false); }
+    });
+  }
+
+  function fbPublish(u) {
+    return authReady().then(function () {
+      return new Promise(function (resolve) {
+        try {
+          var st = (u && u.stats) || {};
+          var doc = {
+            // FIX: rules require keys ['id','name','seed'] — id was missing → PERMISSION_DENIED
+            id: String((u && u.id) || ('u' + Date.now())),
+            name: String((u && u.name) || 'Untitled Universe').slice(0, 60),
+            seed: String((u && u.seed) || ''),
+            author: String((u && u.author) || 'anonymous').slice(0, 40),
+            // FIX: publish universe size so visitors regenerate the same layout
+            stats: { planets: st.planets || 0, life: st.life || 0,
+                     avgTech: st.avgTech || 0, simTime: st.simTime || 0,
+                     size: (u && u.size) || 'm' }
+          };
+          try { doc.createdAt = firebase.firestore.FieldValue.serverTimestamp(); } catch (e) { doc.createdAt = null; }
+          try { if (u && u.universe && typeof RL !== 'undefined' && RL.Codes) doc.code = RL.Codes.encode(u.universe); } catch (e) {}
+          fbDb.collection('universes').add(doc).then(function () { resolve('firebase'); })
+            .catch(function () { resolve(false); });
+        } catch (e) { resolve(false); }
+      });
     });
   }
 
@@ -87,8 +109,10 @@
         seed: String(u.seed),
         author: String(u.author || 'anonymous').slice(0, 40),
         createdAt: u.createdAt || new Date().toISOString(),
+        // FIX: include size so visitors regenerate the same layout
         stats: { planets: st.planets || 0, life: st.life || 0,
-                 avgTech: st.avgTech || 0, simTime: st.simTime || 0 }
+                 avgTech: st.avgTech || 0, simTime: st.simTime || 0,
+                 size: u.size || 'm' }
       };
       var title = 'Universe: ' + entry.name;
       var body = 'Publishing my RuhGenesis universe! \uD83D\uDE80\n\n```universe\n' +
@@ -127,7 +151,7 @@
 
   /* ---------------- shared ---------------- */
   // Normalized entry: {_id (namespaced), _src, id, name, seed, author,
-  //                    createdAt, code|null, stats{planets,life,avgTech,simTime}}
+  //                    createdAt, code|null, stats{planets,life,avgTech,simTime,size}}
   function normEntry(v, src) {
     var st = v.stats || {};
     var rawId = src === 'firebase' ? ('fb:' + (v._docId || v.id || '')) : String(v.id || '');
@@ -140,7 +164,8 @@
       createdAt: v.createdAt || '',
       code: (typeof v.code === 'string' && v.code) ? v.code : null,
       stats: { planets: st.planets || 0, life: st.life || 0,
-               avgTech: st.avgTech || 0, simTime: st.simTime || 0 }
+               avgTech: st.avgTech || 0, simTime: st.simTime || 0,
+               size: st.size || 'm' }
     };
   }
 
@@ -155,11 +180,18 @@
     return b;
   }
 
+  // FIX: publishUniverse now resolves 'firebase' | 'github' | false so the UI
+  // can show the correct toast (was: boolean, Firebase success showed the
+  // GitHub "opening publish flow" message).
   function publishUniverse(u) {
     u = u || {};
     if (!u.seed) return Promise.resolve(false);
-    if (fbAvailable()) return fbPublish(u);
-    return Promise.resolve(ghPublish(u));
+    if (fbAvailable()) {
+      return fbPublish(u).then(function (r) {
+        return r === 'firebase' ? 'firebase' : (ghPublish(u) ? 'github' : false);
+      });
+    }
+    return Promise.resolve(ghPublish(u) ? 'github' : false);
   }
 
   function browseUniverses() {
